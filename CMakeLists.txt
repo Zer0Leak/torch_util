@@ -45,7 +45,35 @@ endif()
 # src/whatever.cpp
 #
 
+
+
 if(NOT TORCH_UTIL_BUILD_INTERFACE)
+
+
+    # --- Global Linker Optimization ---
+    # --- Global Linker Optimization ---
+    if(UNIX AND NOT APPLE)
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.29")
+            set(CMAKE_LINKER_TYPE MOLD)
+            message(STATUS "Global Linker: Using MOLD (via CMAKE_LINKER_TYPE)")
+        else()
+            find_program(MOLD_LINKER mold)
+            if(MOLD_LINKER)
+                # FORCE the linker choice in the global flag strings
+                set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=mold")
+                set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=mold")
+                message(STATUS "Global Linker: Forced MOLD via CMAKE_EXE_LINKER_FLAGS")
+            else()
+                find_program(LLD_LINKER lld)
+                if(LLD_LINKER)
+                    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+                    message(STATUS "Global Linker: Forced LLD")
+                endif()
+            endif()
+        endif()
+    endif()
+
+
     target_compile_options(${TARGET_NAME} PRIVATE
         $<$<CONFIG:Debug>:-O0;-g;-fno-omit-frame-pointer>
         $<$<CONFIG:Debug>:-gsplit-dwarf>
@@ -70,28 +98,6 @@ if(NOT TORCH_UTIL_BUILD_INTERFACE)
     endif()
 
 
-    # --- Global Linker Optimization ---
-    if(UNIX AND NOT APPLE)
-        # 1. Modern CMake 3.29+ way (Best)
-        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.29")
-            set(CMAKE_LINKER_TYPE MOLD)
-            message(STATUS "Global Linker: Using MOLD (via CMAKE_LINKER_TYPE)")
-
-            # 2. Classic way for older CMake (3.22 - 3.28)
-        else()
-            find_program(MOLD_LINKER mold)
-            if(MOLD_LINKER)
-                add_link_options("-fuse-ld=mold") # Applies to all targets in this directory and below
-                message(STATUS "Global Linker: Using MOLD (via add_link_options)")
-            else()
-                find_program(LLD_LINKER lld)
-                if(LLD_LINKER)
-                    add_link_options("-fuse-ld=lld")
-                    message(STATUS "Global Linker: Using LLD")
-                endif()
-            endif()
-        endif()
-    endif()
 
     # ===== Warnings =====
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
