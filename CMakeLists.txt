@@ -25,7 +25,7 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithD
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ===== Target =====
-option(TORCH_UTIL_BUILD_INTERFACE "Build torch_util as an interface library" ON)
+option(TORCH_UTIL_BUILD_INTERFACE "Build torch_util as an interface library" OFF)
 option(TORCH_UTIL_BUILD_SHARED "Build torch_util as a shared library" OFF)
 if(TORCH_UTIL_BUILD_INTERFACE)
     set(TORCK_LINK_MODE INTERFACE)
@@ -40,11 +40,9 @@ else()
     endif()
 endif()
 
-#target_sources(${TARGET_NAME} PRIVATE
-#    src/torch_util.cpp
-# src/whatever.cpp
-#
-
+target_sources(${TARGET_NAME} PRIVATE
+    src/torch_util.cpp
+)
 
 
 if(NOT TORCH_UTIL_BUILD_INTERFACE)
