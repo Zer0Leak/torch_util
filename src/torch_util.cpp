@@ -55,34 +55,42 @@ namespace torch_u {
     return oss.str();
 }
 
-// Scalar -> string (numeric)
 [[gnu::used]] static inline std::string scalar_to_string(const torch::Tensor &s) {
     std::ostringstream ss;
-    ss << s.item<double>();
+    ss << s.item<double>(); // no newlines
     return ss.str();
 }
 
-// Render tensor values as nested, comma-separated brackets.
-// Assumes x is detached and on CPU.
-[[gnu::used]] static inline std::string render_tensor_values_compact(const torch::Tensor &x, int64_t axis_limit) {
-    std::function<std::string(const torch::Tensor &)> render = [&](const torch::Tensor &t) -> std::string {
-        const int64_t dim = t.dim();
+// Render tensor values as nested, comma-separated brackets (no spaces/newlines).
+// Assumes x is detached. Will work on CPU tensors; if CUDA, move to CPU before calling.
+[[gnu::used]] static inline std::string
+render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_to_show_per_1D_vector = 32) {
 
-        if (dim == 0) {
+    std::function<std::string(const torch::Tensor &)> render = [&](const torch::Tensor &t) -> std::string {
+        const int64_t ndim = t.dim();
+        if (ndim == 0) {
             return scalar_to_string(t);
         }
 
-        const int64_t n = std::min<int64_t>(t.size(0), axis_limit);
+        int64_t n = t.sizes()[0];
+        if (ndim == 1) {
+            n = std::min(t.sizes()[0], max_scalars_to_show_per_1D_vector);
+        }
+        const bool print_etc = (t.sizes()[0] > n);
 
         std::string out;
         out.push_back('[');
 
         for (int64_t i = 0; i < n; ++i) {
-            if (i)
+            if (i > 0) {
                 out.push_back(',');
+            }
             out += render(t.select(0, i));
         }
 
+        if (ndim == 1 && print_etc) {
+            out += ",...";
+        }
         out.push_back(']');
         return out;
     };
@@ -100,27 +108,22 @@ namespace torch_u {
     }
 
     torch::Tensor x = t.detach();
-
-    // Keep your "first slice" behavior: t[0,0,...,:]
     const int64_t dim = x.dim();
-    if (dim > 0) {
-        std::vector<torch::indexing::TensorIndex> idx;
-        idx.reserve(dim);
-        for (int64_t d = 0; d < dim - 1; ++d)
-            idx.emplace_back(0);
-        idx.emplace_back(torch::indexing::Slice());
-        x = x.index(idx);
-    }
 
     if (x.is_cuda()) {
         x = x.cpu();
     }
 
-    const int64_t d = x.dim();
-    const int64_t per_axis = (d <= 1) ? 32 : std::max<int64_t>(1, 32 / d);
+    int64_t max_scalars_to_show_per_1D_vector = 32;
+    if (dim > 1) {
+        const int64_t n = x.sizes().back();
+        const int64_t last_dim_vectors = x.numel() / n;
+        max_scalars_to_show_per_1D_vector = 32 / last_dim_vectors;
+        max_scalars_to_show_per_1D_vector = std::max<int64_t>(max_scalars_to_show_per_1D_vector, 1);
+    }
 
-    // Value first
-    oss << "first=" << torch_u::render_tensor_values_compact(x, per_axis) << " ";
+    // Value first (no spaces/newlines in rendering)
+    oss << "first=" << torch_u::render_tensor_values_compact(x, max_scalars_to_show_per_1D_vector) << " ";
 
     // Then metadata
     oss << "Tensor(sizes=" << t.sizes() << ", dtype=" << t.dtype() << ", device=" << t.device()
