@@ -66,6 +66,10 @@ namespace torch_u {
 [[gnu::used]] static inline std::string
 render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_to_show_per_1D_vector = 32) {
 
+    if (x.dim() == 0) {
+        return "(" + scalar_to_string(x) + ")";
+    }
+
     std::function<std::string(const torch::Tensor &)> render = [&](const torch::Tensor &t) -> std::string {
         const int64_t ndim = t.dim();
         if (ndim == 0) {
@@ -102,8 +106,8 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
     std::ostringstream oss;
 
     if (t.numel() == 0) {
-        oss << "first=<empty> " << "Tensor(sizes=" << t.sizes() << ", dtype=" << t.dtype() << ", device=" << t.device()
-            << ", requires_grad=" << (t.requires_grad() ? "true" : "false") << ")";
+        oss << "<empty>, " << "Tensor(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
+            << ", req_grad=" << (t.requires_grad() ? "true" : "false") << ")";
         return oss.str();
     }
 
@@ -123,12 +127,11 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
     }
 
     // Value first (no spaces/newlines in rendering)
-    oss << "first=" << torch_u::render_tensor_values_compact(x, max_scalars_to_show_per_1D_vector) << " ";
+    oss << torch_u::render_tensor_values_compact(x, max_scalars_to_show_per_1D_vector) << ", ";
 
     // Then metadata
-    oss << "Tensor(sizes=" << t.sizes() << ", dtype=" << t.dtype() << ", device=" << t.device()
-        << ", requires_grad=" << (t.requires_grad() ? "true" : "false") << ")";
-
+    oss << "Tensor(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
+        << ", req_grad=" << (t.requires_grad() ? "true" : "false") << ")";
     return oss.str();
 }
 
