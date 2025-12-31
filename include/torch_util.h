@@ -7,6 +7,16 @@
 #include <string>
 #include <string_view>
 #include <torch/torch.h>
+#include <vector>
+#include <xtensor/xexpression.hpp>
+#include <xtensor/xmath.hpp>
+
+#include <limits>
+#include <ranges>
+#include <tuple>
+#include <type_traits>
+#include <xtensor/xexpression.hpp>
+#include <xtensor/xmath.hpp>
 
 // #include <ATen/core/Tensor.h>
 // #include <ATen/core/Formatting.h>
@@ -54,6 +64,52 @@ extern auto dbg(const c10::IntArrayRef &t) -> std::string;
 extern auto dbgp(const torch::Tensor &t, std::optional<std::string_view> name = {}) -> void;
 
 extern auto dbgp(const c10::IntArrayRef &t, std::optional<std::string_view> name = {}) -> void;
+
+template <std::ranges::input_range RX, std::ranges::input_range RY>
+    requires std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RX>>, torch::Tensor> &&
+                 std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RY>>, torch::Tensor>
+auto minmax(RX &&xs, RY &&ys) -> std::tuple<double, double, double, double> {
+    auto init_min = (std::numeric_limits<double>::max)();
+    auto init_max = (std::numeric_limits<double>::lowest)();
+
+    double min_x = init_min, max_x = init_max;
+    double min_y = init_min, max_y = init_max;
+
+    auto update = [](double &mn, double &mx, const torch::Tensor &t) {
+        // Expect CPU float contiguous; enforce defensively:
+        auto tt = t.detach().to(torch::kCPU, torch::kFloat).contiguous();
+
+        const float *p = tt.data_ptr<float>();
+        const std::size_t n = static_cast<std::size_t>(tt.numel());
+        if (n == 0)
+            return;
+
+        auto [mn_it, mx_it] = std::minmax_element(p, p + n);
+        mn = std::min(mn, static_cast<double>(*mn_it));
+        mx = std::max(mx, static_cast<double>(*mx_it));
+    };
+
+    for (const auto &t : xs)
+        update(min_x, max_x, t);
+    for (const auto &t : ys)
+        update(min_y, max_y, t);
+
+    return {min_x, max_x, min_y, max_y};
+}
+
+template <std::ranges::input_range RX, std::ranges::input_range RY>
+    requires std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RX>>, torch::Tensor> &&
+                 std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RY>>, torch::Tensor>
+auto calc_pad(RX &&xs, RY &&ys, float pad = 0.1f) -> std::tuple<double, double, double, double> {
+    auto [min_x, max_x, min_y, max_y] = minmax(xs, ys);
+    auto range_x = max_x - min_x;
+    auto range_y = max_y - min_y;
+    auto min_x_pad = min_x - pad * range_x;
+    auto max_x_pad = max_x + pad * range_x;
+    auto min_y_pad = min_y - pad * range_y;
+    auto max_y_pad = max_y + pad * range_y;
+    return {min_x_pad, max_x_pad, min_y_pad, max_y_pad};
+}
 
 } // namespace torch_u
 
