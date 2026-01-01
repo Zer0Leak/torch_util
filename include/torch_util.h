@@ -65,6 +65,22 @@ extern auto dbgp(const torch::Tensor &t, std::optional<std::string_view> name = 
 
 extern auto dbgp(const c10::IntArrayRef &t, std::optional<std::string_view> name = {}) -> void;
 
+inline torch::Tensor plot_ready(const torch::Tensor &t) {
+    torch::Tensor out = t.detach();
+
+    const bool need_cpu = !out.device().is_cpu();
+    const bool need_float = (out.scalar_type() != torch::kFloat);
+
+    if (need_cpu || need_float) {
+        out = out.to(torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat),
+                     /*non_blocking=*/false,
+                     /*copy=*/false);
+    }
+    if (!out.is_contiguous())
+        out = out.contiguous();
+    return out;
+}
+
 template <std::ranges::input_range RX, std::ranges::input_range RY>
     requires std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RX>>, torch::Tensor> &&
                  std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RY>>, torch::Tensor>
@@ -77,7 +93,7 @@ auto minmax(RX &&xs, RY &&ys) -> std::tuple<double, double, double, double> {
 
     auto update = [](double &mn, double &mx, const torch::Tensor &t) {
         // Expect CPU float contiguous; enforce defensively:
-        auto tt = t.detach().to(torch::kCPU, torch::kFloat).contiguous();
+        auto tt = torch_u::plot_ready(t);
 
         const float *p = tt.data_ptr<float>();
         const std::size_t n = static_cast<std::size_t>(tt.numel());
@@ -109,6 +125,11 @@ auto calc_pad(RX &&xs, RY &&ys, float pad = 0.1f) -> std::tuple<double, double, 
     auto min_y_pad = min_y - pad * range_y;
     auto max_y_pad = max_y + pad * range_y;
     return {min_x_pad, max_x_pad, min_y_pad, max_y_pad};
+}
+
+inline auto calc_pad(const torch::Tensor &x, const torch::Tensor &y,
+                     float pad = 0.1f) -> std::tuple<double, double, double, double> {
+    return calc_pad(std::array{x}, std::array{y}, pad);
 }
 
 } // namespace torch_u
