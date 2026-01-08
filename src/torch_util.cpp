@@ -57,25 +57,28 @@ namespace torch_u {
 
 [[gnu::used]] static inline std::string scalar_to_string(const torch::Tensor &s) {
     std::ostringstream ss;
-    ss << s.item<double>(); // no newlines
+    ss << s.item<double>();  // no newlines
     return ss.str();
 }
 
 // Render tensor values as nested, comma-separated brackets (no spaces/newlines).
 // Assumes x is detached. Will work on CPU tensors; if CUDA, move to CPU before calling.
 [[gnu::used]] static inline std::string
-render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_to_show_per_1D_vector = 32) {
-
+render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_to_show_per_1D_vector = 32,
+                             bool indent = false) {
+    const auto indent_size = 4;
     if (x.dim() == 0) {
         return "(" + scalar_to_string(x) + ")";
     }
 
-    std::function<std::string(const torch::Tensor &)> render = [&](const torch::Tensor &t) -> std::string {
+    std::function<std::string(const torch::Tensor &, int)> render = [&](const torch::Tensor &t,
+                                                                        int level) -> std::string {
         const int64_t ndim = t.dim();
         if (ndim == 0) {
             return scalar_to_string(t);
         }
 
+        auto indentation = std::string(level * indent_size, ' ');
         int64_t n = t.sizes()[0];
         if (ndim == 1) {
             n = std::min(t.sizes()[0], max_scalars_to_show_per_1D_vector);
@@ -83,27 +86,49 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
         const bool print_etc = (t.sizes()[0] > n);
 
         std::string out;
-        out.push_back('[');
+
+        if (indent) {
+            out += indentation + "[";
+            if (ndim > 1) {
+                out += "\n";
+            }
+        } else {
+            out += "[";
+        }
 
         for (int64_t i = 0; i < n; ++i) {
             if (i > 0) {
                 out.push_back(',');
+                if (indent && ndim > 1) {
+                    out += "\n";
+                }
             }
-            out += render(t.select(0, i));
+            auto next_level = level + 1;
+            out += render(t.select(0, i), next_level);
         }
 
         if (ndim == 1 && print_etc) {
             out += ",...";
         }
-        out.push_back(']');
+
+        if (indent) {
+            if (ndim > 1) {
+                out += "\n" + indentation;
+            }
+            out += "]";
+        } else {
+            out += "]";
+        }
+
         return out;
     };
 
-    return render(x);
+    return render(x, 0);
 }
 
-[[gnu::used]] static inline std::string tensor_first_slice_str(const torch::Tensor &t) {
+std::string tensor_str(const torch::Tensor &t, bool indent) {
     std::ostringstream oss;
+    const auto indent_size = 4;
 
     if (t.numel() == 0) {
         oss << "<empty>, " << "Tensor(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
@@ -127,7 +152,11 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
     }
 
     // Value first (no spaces/newlines in rendering)
-    oss << torch_u::render_tensor_values_compact(x, max_scalars_to_show_per_1D_vector) << ", ";
+    oss << torch_u::render_tensor_values_compact(x, max_scalars_to_show_per_1D_vector, indent) << ", ";
+
+    if (indent) {
+        oss << "\n" << std::string(indent_size, ' ');
+    }
 
     // Then metadata
     oss << "Tensor(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
@@ -135,7 +164,7 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
     return oss.str();
 }
 
-} // namespace torch_u
+}  // namespace torch_u
 
 extern "C" {
 // Tensor summary for watch list (header only).
@@ -152,15 +181,15 @@ const char *ptv(const torch::Tensor *t) {
     static thread_local std::string buf;
     if (!t)
         return "Error: Tensor is null";
-    buf = torch_u::tensor_full_str(*t);
+    buf = torch_u::tensor_str(*t, true);
     return buf.c_str();
 }
 
-const char *ptf(const torch::Tensor *t) {
+const char *dtv(const torch::Tensor *t) {
     static thread_local std::string buf;
     if (!t)
         return "Error: Tensor is null";
-    buf = torch_u::tensor_first_slice_str(*t);
+    buf = torch_u::tensor_str(*t, false);
     return buf.c_str();
 }
 

@@ -45,7 +45,7 @@ template <> struct std::formatter<at::Tensor> : std::formatter<std::string_view>
 template <> struct std::formatter<c10::IntArrayRef> : std::formatter<std::string_view> {
     auto format(c10::IntArrayRef sizes, std::format_context &ctx) const {
         std::stringstream ss;
-        ss << sizes; // Use LibTorch's built-in array printer
+        ss << sizes;  // Use LibTorch's built-in array printer
         return std::formatter<std::string_view>::format(ss.str(), ctx);
     }
 };
@@ -53,7 +53,7 @@ template <> struct std::formatter<c10::IntArrayRef> : std::formatter<std::string
 namespace torch_u {
 
 inline auto f32() -> torch::TensorOptions {
-    auto device = torch::kCUDA; // torch::kCUDA or torch::kCPU
+    auto device = torch::kCUDA;  // torch::kCUDA or torch::kCPU
     return torch::TensorOptions().dtype(torch::kFloat32).device(device);
 }
 
@@ -132,14 +132,16 @@ inline auto calc_pad(const torch::Tensor &x, const torch::Tensor &y,
     return calc_pad(std::array{x}, std::array{y}, pad);
 }
 
-} // namespace torch_u
+extern std::string tensor_str(const torch::Tensor &t, bool indent = true);
+
+}  // namespace torch_u
 
 extern "C" {
 const char *pt(const torch::Tensor *t);
 
 const char *ptv(const torch::Tensor *t);
 
-const char *ptf(const torch::Tensor *t);
+const char *dtv(const torch::Tensor *t);
 
 const char *ps(const torch::Tensor *t);
 }
