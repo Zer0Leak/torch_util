@@ -57,6 +57,11 @@ inline auto f32() -> torch::TensorOptions {
     return torch::TensorOptions().dtype(torch::kFloat32).device(device);
 }
 
+inline auto f64() -> torch::TensorOptions {
+    auto device = torch::kCUDA;  // torch::kCUDA or torch::kCPU
+    return torch::TensorOptions().dtype(torch::kFloat64).device(device);
+}
+
 extern auto dbg(const torch::Tensor &t) -> std::string;
 
 extern auto dbg(const c10::IntArrayRef &t) -> std::string;
