@@ -1,5 +1,8 @@
 #pragma once
 
+#include <torch_util_pad.h>
+#include <torch_util_plot.h>
+
 #include <format>
 #include <optional>
 #include <print>
@@ -17,6 +20,13 @@
 #include <type_traits>
 #include <xtensor/xexpression.hpp>
 #include <xtensor/xmath.hpp>
+
+#include <algorithm>
+#include <array>
+#include <limits>
+#include <ranges>
+#include <tuple>
+#include <type_traits>
 
 // #include <ATen/core/Tensor.h>
 // #include <ATen/core/Formatting.h>
@@ -69,87 +79,6 @@ extern auto dbg(const c10::IntArrayRef &t) -> std::string;
 extern auto dbgp(const torch::Tensor &t, std::optional<std::string_view> name = {}) -> void;
 
 extern auto dbgp(const c10::IntArrayRef &t, std::optional<std::string_view> name = {}) -> void;
-
-template <typename T> struct torch_scalar;
-
-template <> struct torch_scalar<float> {
-    static constexpr torch::ScalarType value = torch::kFloat;
-};
-
-template <> struct torch_scalar<double> {
-    static constexpr torch::ScalarType value = torch::kDouble;
-};
-
-template <typename T> inline torch::Tensor plot_ready(const torch::Tensor &t) {
-    static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>, "plot_ready<T>: T must be float or double");
-
-    torch::Tensor out = t.detach();
-
-    const bool need_cpu = !out.device().is_cpu();
-    const bool need_dtype = (out.scalar_type() != torch_scalar<T>::value);
-
-    if (need_cpu || need_dtype) {
-        out = out.to(torch::TensorOptions().device(torch::kCPU).dtype(torch_scalar<T>::value),
-                     /*non_blocking=*/false,
-                     /*copy=*/false);
-    }
-
-    if (!out.is_contiguous())
-        out = out.contiguous();
-
-    return out;
-}
-
-template <std::ranges::input_range RX, std::ranges::input_range RY>
-    requires std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RX>>, torch::Tensor> &&
-                 std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RY>>, torch::Tensor>
-auto minmax(RX &&xs, RY &&ys) -> std::tuple<double, double, double, double> {
-    auto init_min = (std::numeric_limits<double>::max)();
-    auto init_max = (std::numeric_limits<double>::lowest)();
-
-    double min_x = init_min, max_x = init_max;
-    double min_y = init_min, max_y = init_max;
-
-    auto update = [](double &mn, double &mx, const torch::Tensor &t) {
-        // Expect CPU double contiguous; enforce defensively:
-        auto tt = torch_u::plot_ready<double>(t);
-
-        const double *p = tt.data_ptr<double>();
-        const std::size_t n = static_cast<std::size_t>(tt.numel());
-        if (n == 0)
-            return;
-
-        auto [mn_it, mx_it] = std::minmax_element(p, p + n);
-        mn = std::min(mn, static_cast<double>(*mn_it));
-        mx = std::max(mx, static_cast<double>(*mx_it));
-    };
-
-    for (const auto &t : xs)
-        update(min_x, max_x, t);
-    for (const auto &t : ys)
-        update(min_y, max_y, t);
-
-    return {min_x, max_x, min_y, max_y};
-}
-
-template <std::ranges::input_range RX, std::ranges::input_range RY>
-    requires std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RX>>, torch::Tensor> &&
-                 std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<RY>>, torch::Tensor>
-auto calc_pad(RX &&xs, RY &&ys, double pad = 0.1f) -> std::tuple<double, double, double, double> {
-    auto [min_x, max_x, min_y, max_y] = minmax(xs, ys);
-    auto range_x = max_x - min_x;
-    auto range_y = max_y - min_y;
-    auto min_x_pad = min_x - pad * range_x;
-    auto max_x_pad = max_x + pad * range_x;
-    auto min_y_pad = min_y - pad * range_y;
-    auto max_y_pad = max_y + pad * range_y;
-    return {min_x_pad, max_x_pad, min_y_pad, max_y_pad};
-}
-
-inline auto calc_pad(const torch::Tensor &x, const torch::Tensor &y,
-                     double pad = 0.1) -> std::tuple<double, double, double, double> {
-    return calc_pad(std::array{x}, std::array{y}, pad);
-}
 
 extern std::string tensor_str(const torch::Tensor &t, bool indent = true);
 
