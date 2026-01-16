@@ -126,7 +126,7 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
     return render(x, 0);
 }
 
-std::string tensor_str(const torch::Tensor &t, bool indent) {
+std::string tstr(const torch::Tensor &t, bool indent) {
     std::ostringstream oss;
     const auto indent_size = 4;
 
@@ -181,7 +181,7 @@ const char *ptv(const torch::Tensor *t) {
     static thread_local std::string buf;
     if (!t)
         return "Error: Tensor is null";
-    buf = torch_u::tensor_str(*t, true);
+    buf = torch_u::tstr(*t, true);
     return buf.c_str();
 }
 
@@ -189,7 +189,7 @@ const char *dtv(const torch::Tensor *t) {
     static thread_local std::string buf;
     if (!t)
         return "Error: Tensor is null";
-    buf = torch_u::tensor_str(*t, false);
+    buf = torch_u::tstr(*t, false);
     return buf.c_str();
 }
 

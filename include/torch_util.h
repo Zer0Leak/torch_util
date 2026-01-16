@@ -80,7 +80,7 @@ extern auto dbgp(const torch::Tensor &t, std::optional<std::string_view> name = 
 
 extern auto dbgp(const c10::IntArrayRef &t, std::optional<std::string_view> name = {}) -> void;
 
-extern std::string tensor_str(const torch::Tensor &t, bool indent = true);
+extern std::string tstr(const torch::Tensor &t, bool indent = true);
 
 }  // namespace torch_u
 
