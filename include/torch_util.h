@@ -62,6 +62,30 @@ template <> struct std::formatter<c10::IntArrayRef> : std::formatter<std::string
 
 namespace torch_u {
 
+struct FormatSettings {
+    std::ios_base &(*fmt)(std::ios_base &) = std::scientific;  // std::fixed / std::scientific
+    std::_Setprecision precision = std::setprecision(6);       // std::setprecision(6)
+    std::ios_base &(*align)(std::ios_base &) = std::right;     // std::right / std::left;
+    std::_Setw width = std::setw(0);
+};
+
+extern FormatSettings g_default_format_settings;
+
+struct FormatGuard {
+    FormatSettings old_settings;  // Where the "default" is saved
+
+    // The constructor takes the NEW settings (created via designated init)
+    FormatGuard(FormatSettings new_settings)
+        : old_settings(g_default_format_settings)  // STEP A: Copy current globals into old_settings
+    {
+        g_default_format_settings = new_settings;  // STEP B: Overwrite globals with the new user settings
+    }
+
+    ~FormatGuard() {
+        g_default_format_settings = old_settings;  // STEP C: Restore globals from the saved copy
+    }
+};
+
 inline auto f32() -> torch::TensorOptions {
     auto device = torch::kCUDA;  // torch::kCUDA or torch::kCPU
     return torch::TensorOptions().dtype(torch::kFloat32).device(device);

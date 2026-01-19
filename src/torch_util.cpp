@@ -13,6 +13,8 @@
 
 namespace torch_u {
 
+FormatSettings g_default_format_settings;
+
 [[gnu::used]] auto dbg_tensor(const torch::Tensor &t) -> std::string { return std::format("{}", t); }
 
 [[gnu::used]] auto dbg(const c10::IntArrayRef &t) -> std::string { return std::format("{}", t); }
@@ -57,6 +59,8 @@ namespace torch_u {
 
 [[gnu::used]] static inline std::string scalar_to_string(const torch::Tensor &s) {
     std::ostringstream ss;
+    ss << g_default_format_settings.fmt << g_default_format_settings.precision << g_default_format_settings.align
+       << g_default_format_settings.width;
     ss << s.item<double>();  // no newlines
     return ss.str();
 }
@@ -99,8 +103,12 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
         for (int64_t i = 0; i < n; ++i) {
             if (i > 0) {
                 out.push_back(',');
-                if (indent && ndim > 1) {
-                    out += "\n";
+                if (indent) {
+                    if (ndim > 1) {
+                        out += "\n";
+                    } else {
+                        out += " ";
+                    }
                 }
             }
             auto next_level = level + 1;
@@ -143,8 +151,8 @@ std::string tstr(const torch::Tensor &t, bool indent) {
         x = x.cpu();
     }
 
-    int64_t max_scalars_to_show_per_1D_vector = 32;
-    if (dim > 1) {
+    int64_t max_scalars_to_show_per_1D_vector = indent ? std::numeric_limits<int64_t>::max() : 32;
+    if (dim > 1 && !indent) {
         const int64_t n = x.sizes().back();
         const int64_t last_dim_vectors = x.numel() / n;
         max_scalars_to_show_per_1D_vector = 32 / last_dim_vectors;
