@@ -93,6 +93,20 @@ auto calc_pad(RX &&xs, RY &&ys, double pad = 0.1) -> std::tuple<double, double, 
     return {min_x_pad, max_x_pad, min_y_pad, max_y_pad};
 }
 
+inline auto
+merge_pad(const std::tuple<double, double, double, double> &pad1,
+          const std::tuple<double, double, double, double> &pad2) -> std::tuple<double, double, double, double> {
+    const auto &[min_x1, max_x1, min_y1, max_y1] = pad1;
+    const auto &[min_x2, max_x2, min_y2, max_y2] = pad2;
+
+    const double min_x_pad = std::min(min_x1, min_x2);
+    const double max_x_pad = std::max(max_x1, max_x2);
+    const double min_y_pad = std::min(min_y1, min_y2);
+    const double max_y_pad = std::max(max_y1, max_y2);
+
+    return {min_x_pad, max_x_pad, min_y_pad, max_y_pad};
+}
+
 // ============================================================
 //  Convenience overloads for single inputs
 // ============================================================
