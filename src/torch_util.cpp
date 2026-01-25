@@ -57,11 +57,63 @@ FormatSettings g_default_format_settings;
     return oss.str();
 }
 
-[[gnu::used]] static inline std::string scalar_to_string(const torch::Tensor &s) {
+#include <sstream>
+#include <stdexcept>
+#include <torch/torch.h>
+
+[[gnu::used]]
+static inline std::string scalar_to_string(const torch::Tensor &s) {
+    if (!s.defined()) {
+        throw std::invalid_argument("scalar_to_string: tensor is undefined");
+    }
+
+    if (s.numel() != 1) {
+        throw std::invalid_argument("scalar_to_string: tensor is not scalar");
+    }
+
     std::ostringstream ss;
     ss << g_default_format_settings.fmt << g_default_format_settings.precision << g_default_format_settings.align
        << g_default_format_settings.width;
-    ss << s.item<double>();  // no newlines
+
+    switch (s.scalar_type()) {
+
+    // --- Floating point ---
+    case torch::kFloat32:
+        ss << s.item<float>();
+        break;
+    case torch::kFloat64:
+        ss << s.item<double>();
+        break;
+
+    // --- Signed integers ---
+    case torch::kInt8:
+        ss << static_cast<int>(s.item<int8_t>());  // avoid char printing
+        break;
+    case torch::kInt16:
+        ss << s.item<int16_t>();
+        break;
+    case torch::kInt32:
+        ss << s.item<int32_t>();
+        break;
+    case torch::kInt64:
+        ss << s.item<int64_t>();
+        break;
+
+    // --- Unsigned integers ---
+    case torch::kUInt8:
+        ss << static_cast<unsigned int>(s.item<uint8_t>());
+        break;
+
+    // --- Boolean ---
+    case torch::kBool:
+        ss << (s.item<bool>() ? 1 : 0);
+        break;
+
+    default:
+        throw std::invalid_argument(std::string("scalar_to_string: unsupported dtype ") +
+                                    c10::toString(s.scalar_type()));
+    }
+
     return ss.str();
 }
 
