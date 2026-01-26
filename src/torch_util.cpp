@@ -61,13 +61,12 @@ FormatSettings g_default_format_settings;
 #include <stdexcept>
 #include <torch/torch.h>
 
-[[gnu::used]]
-static inline std::string scalar_to_string(const torch::Tensor &s) {
+std::string tsstr(const torch::Tensor &s) {
     if (!s.defined()) {
         throw std::invalid_argument("scalar_to_string: tensor is undefined");
     }
 
-    if (s.numel() != 1) {
+    if (s.dim() != 0) {
         throw std::invalid_argument("scalar_to_string: tensor is not scalar");
     }
 
@@ -124,14 +123,14 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
                              bool indent = false) {
     const auto indent_size = 4;
     if (x.dim() == 0) {
-        return "(" + scalar_to_string(x) + ")";
+        return "(" + tsstr(x) + ")";
     }
 
     std::function<std::string(const torch::Tensor &, int)> render = [&](const torch::Tensor &t,
                                                                         int level) -> std::string {
         const int64_t ndim = t.dim();
         if (ndim == 0) {
-            return scalar_to_string(t);
+            return tsstr(t);
         }
 
         auto indentation = std::string(level * indent_size, ' ');
