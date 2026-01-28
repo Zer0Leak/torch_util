@@ -138,15 +138,33 @@ void fit_fullbatch(torch::nn::Sequential &model, const torch::Tensor &X, const t
 template <typename Loss, typename Optimizer>
 void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor Y, Loss &loss, Optimizer &optimizer,
                    int epochs, int64_t batch_size = 32, bool verbose = false) {
+    TORCH_CHECK(torch::GradMode::is_enabled(), "GradMode is disabled");
+    TORCH_CHECK(!c10::InferenceMode::is_enabled(), "InferenceMode is enabled");
+
+    // torch::AutoGradMode enable_grad(true);
+    // c10::InferenceMode inference_guard(false);
+
     model->train();
 
-    TORCH_CHECK(X.dim() == 2, "X must be (N,D)");
-    TORCH_CHECK(Y.dim() == 2 && Y.size(1) == 1, "Y must be (N,1)");
+    if constexpr (std::is_same_v<Loss, torch::nn::CrossEntropyLoss>) {
+        TORCH_CHECK(Y.dim() == 1, "CE: Y must be (N)");
+        TORCH_CHECK(Y.scalar_type() == torch::kLong, "CE: Y must be int64");
+    } else if constexpr (std::is_same_v<Loss, torch::nn::BCEWithLogitsLoss> or
+                         std::is_same_v<Loss, torch::nn::BCELoss>) {
+        TORCH_CHECK(Y.dim() == 2 && Y.size(1) == 1, "BCE: Y must be (N,1)");
+        TORCH_CHECK(Y.is_floating_point(), "BCE: Y must be float");
+    } else {
+        static_assert(!sizeof(Loss), "Unsupported loss type");
+    }
+
     TORCH_CHECK(X.size(0) == Y.size(0), "X/Y batch mismatch");
 
     const auto N = X.size(0);
     auto device = X.device();
     auto idx_opts = torch::TensorOptions().dtype(torch::kInt64).device(device);
+
+    std::println("X.sizes(): {}", X.sizes());
+    std::println("Y.sizes(): {}", Y.sizes());
 
     for (int e = 0; e < epochs; ++e) {
         if (verbose) {
@@ -165,6 +183,8 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
             int64_t end = std::min(start + batch_size, N);
             auto idx = perm.slice(0, start, end);
 
+            // std::cout << "idx max: " << idx.max().item<int64_t>() << std::endl;
+
             auto xb = X.index_select(0, idx);
             auto yb = Y.index_select(0, idx);
 
@@ -172,6 +192,10 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
 
             auto logits = model->forward(xb);
             auto L = loss(logits, yb);
+
+            // std::cout << "GradMode enabled? " << torch::GradMode::is_enabled() << "\n"
+            //           << "logits.requires_grad: " << logits.requires_grad() << "\n"
+            //           << "L.requires_grad: " << L.requires_grad() << "\n";
 
             L.backward();
             optimizer.step();

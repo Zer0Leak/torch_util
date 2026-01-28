@@ -118,18 +118,22 @@ std::string tsstr(const torch::Tensor &s) {
 
 // Render tensor values as nested, comma-separated brackets (no spaces/newlines).
 // Assumes x is detached. Will work on CPU tensors; if CUDA, move to CPU before calling.
-[[gnu::used]] static inline std::string
-render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_to_show_per_1D_vector = 32,
-                             bool indent = false) {
+[[gnu::used]] static inline std::string render_tensor_values_compact(const torch::Tensor &x,
+                                                                     const int64_t max_scalar_to_show,
+                                                                     const int64_t max_scalars_to_show_per_1D_vector,
+                                                                     bool indent = false) {
     const auto indent_size = 4;
     if (x.dim() == 0) {
         return "(" + tsstr(x) + ")";
     }
+    int64_t scalars_shown = 0;
+    bool scalar_dropped = false;
 
     std::function<std::string(const torch::Tensor &, int)> render = [&](const torch::Tensor &t,
                                                                         int level) -> std::string {
         const int64_t ndim = t.dim();
         if (ndim == 0) {
+            scalars_shown++;
             return tsstr(t);
         }
 
@@ -152,6 +156,10 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
         }
 
         for (int64_t i = 0; i < n; ++i) {
+            if (scalars_shown >= max_scalar_to_show) {
+                scalar_dropped = true;
+                break;
+            }
             if (i > 0) {
                 out.push_back(',');
                 if (indent) {
@@ -170,19 +178,45 @@ render_tensor_values_compact(const torch::Tensor &x, const int64_t max_scalars_t
             out += ",...";
         }
 
+        auto is_root = level == 0;  // t.sizes() == x.sizes();
+
         if (indent) {
             if (ndim > 1) {
-                out += "\n" + indentation;
+                if (scalar_dropped) {
+                    out += ",";
+                }
+                out += "\n";
             }
-            out += "]";
-        } else {
-            out += "]";
         }
+
+        if (scalar_dropped) {
+            if (is_root) {
+                if (ndim > 1) {
+                    auto prev_indentation = std::string((1) * indent_size, ' ');
+                    if (indent) {
+                        out += prev_indentation + "...\n";
+                    } else {
+                        out += ",...";
+                    }
+                } else {  // ndim == 1
+                    if (!print_etc) {
+                        out += ",...";
+                    }
+                }
+            }
+        }
+
+        if (indent && ndim > 1) {
+            out += indentation;
+        }
+        out += "]";
 
         return out;
     };
 
-    return render(x, 0);
+    auto output = render(x, 0);
+
+    return output;
 }
 
 std::string tstr(const torch::Tensor &t, bool indent) {
@@ -202,16 +236,19 @@ std::string tstr(const torch::Tensor &t, bool indent) {
         x = x.cpu();
     }
 
-    int64_t max_scalars_to_show_per_1D_vector = indent ? std::numeric_limits<int64_t>::max() : 32;
-    if (dim > 1 && !indent) {
+    const int64_t max_scalar_to_show = indent ? 64 : 32;
+
+    int64_t max_scalars_to_show_per_1D_vector = max_scalar_to_show;
+    if (dim > 1) {
         const int64_t n = x.sizes().back();
         const int64_t last_dim_vectors = x.numel() / n;
-        max_scalars_to_show_per_1D_vector = 32 / last_dim_vectors;
+        max_scalars_to_show_per_1D_vector = max_scalar_to_show / last_dim_vectors;
         max_scalars_to_show_per_1D_vector = std::max<int64_t>(max_scalars_to_show_per_1D_vector, 1);
     }
 
     // Value first (no spaces/newlines in rendering)
-    oss << torch_u::render_tensor_values_compact(x, max_scalars_to_show_per_1D_vector, indent) << ", ";
+    oss << torch_u::render_tensor_values_compact(x, max_scalar_to_show, max_scalars_to_show_per_1D_vector, indent)
+        << ", ";
 
     if (indent) {
         oss << "\n" << std::string(indent_size, ' ');
