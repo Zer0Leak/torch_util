@@ -12,6 +12,14 @@ template <> struct torch_scalar<bool> {
     static constexpr torch::ScalarType value = torch::kBool;
 };
 
+template <> struct torch_scalar<int32_t> {
+    static constexpr torch::ScalarType value = torch::kInt32;
+};
+
+template <> struct torch_scalar<int64_t> {
+    static constexpr torch::ScalarType value = torch::kInt64;
+};
+
 template <> struct torch_scalar<float> {
     static constexpr torch::ScalarType value = torch::kFloat;
 };
@@ -21,8 +29,9 @@ template <> struct torch_scalar<double> {
 };
 
 template <typename T> inline torch::Tensor plot_ready(const torch::Tensor &t) {
-    static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> || std::is_same_v<T, bool>,
-                  "plot_ready<T>: T must be float, double, or bool");
+    static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> || std::is_same_v<T, int64_t> ||
+                      std::is_same_v<T, int32_t> || std::is_same_v<T, bool>,
+                  "plot_ready<T>: T must be float, double, int64_t, int32_t, or bool");
 
     torch::Tensor out = t.detach();
 
