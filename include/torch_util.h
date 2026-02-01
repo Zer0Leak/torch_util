@@ -141,14 +141,16 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
     TORCH_CHECK(torch::GradMode::is_enabled(), "GradMode is disabled");
     TORCH_CHECK(!c10::InferenceMode::is_enabled(), "InferenceMode is enabled");
 
-    // torch::AutoGradMode enable_grad(true);
-    // c10::InferenceMode inference_guard(false);
+    torch::AutoGradMode enable_grad(true);
+    c10::InferenceMode inference_guard(false);
 
     model->train();
 
     if constexpr (std::is_same_v<Loss, torch::nn::CrossEntropyLoss>) {
         TORCH_CHECK(Y.dim() == 1, "CE: Y must be (N)");
         TORCH_CHECK(Y.scalar_type() == torch::kLong, "CE: Y must be int64");
+    } else if constexpr (std::is_same_v<Loss, torch::nn::MSELoss>) {
+        TORCH_CHECK(Y.dim() == 2 && Y.size(1) == 1, "MSE: Y must be (N,1)");
     } else if constexpr (std::is_same_v<Loss, torch::nn::BCEWithLogitsLoss> or
                          std::is_same_v<Loss, torch::nn::BCELoss>) {
         TORCH_CHECK(Y.dim() == 2 && Y.size(1) == 1, "BCE: Y must be (N,1)");
@@ -167,7 +169,9 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
     std::println("Y.sizes(): {}", Y.sizes());
 
     for (int e = 0; e < epochs; ++e) {
-        if (verbose) {
+        const bool verbose_print = verbose && (e % (epochs / 10) == 0);
+
+        if (verbose_print) {
             std::cout << "Epoch " << (e + 1) << "/" << epochs << " " << std::flush;
         }
 
@@ -175,7 +179,7 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
         double epoch_loss_sum = 0.0;
 
         for (int64_t start = 0; start < N; start += batch_size) {
-            if (verbose) {
+            if (verbose_print) {
                 if (start % (N / 10) == 0) {
                     std::cout << "=" << std::flush;
                 }
@@ -190,12 +194,28 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
 
             optimizer.zero_grad();
 
-            auto logits = model->forward(xb);
-            auto L = loss(logits, yb);
+            auto prediction = model->forward(xb);
+            auto L = loss(prediction, yb);
 
-            // std::cout << "GradMode enabled? " << torch::GradMode::is_enabled() << "\n"
-            //           << "logits.requires_grad: " << logits.requires_grad() << "\n"
-            //           << "L.requires_grad: " << L.requires_grad() << "\n";
+#if 1
+            if (verbose_print) {
+                bool second_or_unique = (batch_size > N ? start == batch_size : start == 0);
+                if (second_or_unique) {
+                    std::cout << "\n    GradMode enabled: " << torch::GradMode::is_enabled() << "\n";
+                    std::cout << "    InferenceMode enabled: " << c10::InferenceMode::is_enabled() << "\n";
+
+                    for (const auto &p : model->parameters()) {
+                        std::cout << "    param requires_grad=" << p.requires_grad()
+                                  << " grad_defined=" << p.grad().defined() << " sizes=" << p.sizes() << "\n";
+                        break;  // just first param
+                    }
+
+                    std::cout << "    xb requires_grad=" << xb.requires_grad() << "\n";
+                    std::cout << "    prediction requires_grad=" << prediction.requires_grad() << "\n";
+                    std::cout << "    L requires_grad=" << L.requires_grad() << "\n";
+                }
+            }
+#endif
 
             L.backward();
             optimizer.step();
@@ -203,7 +223,7 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
             epoch_loss_sum += L.template item<double>() * (end - start);
         }
 
-        if (verbose) {
+        if (verbose_print) {
             double epoch_loss = epoch_loss_sum / static_cast<double>(N);
             std::cout << " loss = " << epoch_loss << std::endl;
         }

@@ -29,7 +29,7 @@ concept MinMaxSample =
 // --- torch::Tensor ---
 inline void update_minmax(double &mn, double &mx, const torch::Tensor &t) {
     // Expect CPU double contiguous; enforce defensively
-    auto tt = torch_u::plot_ready<double>(t);
+    auto tt = torch_u::plot_ready(t, torch::kFloat64);
 
     const double *p = tt.data_ptr<double>();
     const std::size_t n = static_cast<std::size_t>(tt.numel());

@@ -260,6 +260,31 @@ std::string tstr(const torch::Tensor &t, bool indent) {
     return oss.str();
 }
 
+torch::Tensor plot_ready(torch::Tensor t, torch::ScalarType dtype, bool force_copy) {
+    // Break autograd graph
+    t = t.detach();
+
+    const bool need_cpu = !t.device().is_cpu();
+    const bool need_dtype = (t.scalar_type() != dtype);
+
+    if (need_cpu || need_dtype) {
+        // copy=false is fine; PyTorch will still copy if required (device/dtype change)
+        t = t.to(torch::TensorOptions().device(torch::kCPU).dtype(dtype),
+                 /*non_blocking=*/false,
+                 /*copy=*/false);
+    }
+
+    // Plotting typically expects contiguous CPU memory
+    if (!t.is_contiguous())
+        t = t.contiguous();
+
+    // If you need a stable buffer that won't alias training tensors, force a clone
+    if (force_copy)
+        t = t.clone();
+
+    return t;
+}
+
 }  // namespace torch_u
 
 extern "C" {
