@@ -169,7 +169,7 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
     std::println("Y.sizes(): {}", Y.sizes());
 
     for (int e = 0; e < epochs; ++e) {
-        const bool verbose_print = verbose && (e % (epochs / 10) == 0);
+        const bool verbose_print = verbose && ((e % (epochs / 10) == 0) || e == epochs - 1);
 
         if (verbose_print) {
             std::cout << "Epoch " << (e + 1) << "/" << epochs << " " << std::flush;

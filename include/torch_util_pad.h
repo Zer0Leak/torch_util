@@ -20,7 +20,8 @@ namespace torch_u {
 
 template <typename T>
 concept MinMaxSample =
-    std::same_as<std::remove_cvref_t<T>, torch::Tensor> || std::same_as<std::remove_cvref_t<T>, std::vector<double>>;
+    std::same_as<std::remove_cvref_t<T>, torch::Tensor> || std::same_as<std::remove_cvref_t<T>, std::vector<float>> ||
+    std::same_as<std::remove_cvref_t<T>, std::vector<double>>;
 
 // ============================================================
 //  Min/max extraction per sample type
@@ -28,17 +29,37 @@ concept MinMaxSample =
 
 // --- torch::Tensor ---
 inline void update_minmax(double &mn, double &mx, const torch::Tensor &t) {
-    // Expect CPU double contiguous; enforce defensively
-    auto tt = torch_u::plot_ready(t, torch::kFloat64);
+    TORCH_CHECK(t.is_floating_point(), "Tensor must be floating point");
 
-    const double *p = tt.data_ptr<double>();
+    // Ensure CPU + contiguous, keep original dtype
+    auto tt = torch_u::plot_ready(t, /*dtype=*/t.scalar_type());
+
     const std::size_t n = static_cast<std::size_t>(tt.numel());
     if (n == 0)
         return;
 
-    auto [mn_it, mx_it] = std::minmax_element(p, p + n);
-    mn = std::min(mn, *mn_it);
-    mx = std::max(mx, *mx_it);
+    if (tt.scalar_type() == torch::kFloat32) {
+        const float *p = tt.data_ptr<float>();
+        auto [mn_it, mx_it] = std::minmax_element(p, p + n);
+        mn = std::min(mn, static_cast<double>(*mn_it));
+        mx = std::max(mx, static_cast<double>(*mx_it));
+    } else if (tt.scalar_type() == torch::kFloat64) {
+        const double *p = tt.data_ptr<double>();
+        auto [mn_it, mx_it] = std::minmax_element(p, p + n);
+        mn = std::min(mn, *mn_it);
+        mx = std::max(mx, *mx_it);
+    } else {
+        TORCH_CHECK(false, "Unsupported tensor dtype for minmax");
+    }
+}
+
+inline void update_minmax(double &mn, double &mx, const std::vector<float> &v) {
+    if (v.empty())
+        return;
+
+    auto [mn_it, mx_it] = std::minmax_element(v.begin(), v.end());
+    mn = std::min(mn, static_cast<double>(*mn_it));
+    mx = std::max(mx, static_cast<double>(*mx_it));
 }
 
 // --- std::vector<double> ---

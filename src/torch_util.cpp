@@ -224,7 +224,7 @@ std::string tstr(const torch::Tensor &t, bool indent) {
     const auto indent_size = 4;
 
     if (t.numel() == 0) {
-        oss << "<empty>, " << "Tensor(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
+        oss << "<empty>, " << "(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
             << ", req_grad=" << (t.requires_grad() ? "true" : "false") << ")";
         return oss.str();
     }
@@ -246,17 +246,19 @@ std::string tstr(const torch::Tensor &t, bool indent) {
         max_scalars_to_show_per_1D_vector = std::max<int64_t>(max_scalars_to_show_per_1D_vector, 1);
     }
 
-    // Value first (no spaces/newlines in rendering)
-    oss << torch_u::render_tensor_values_compact(x, max_scalar_to_show, max_scalars_to_show_per_1D_vector, indent)
-        << ", ";
+    // Then metadata
+    oss << "(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
+        << ", req_grad=" << (t.requires_grad() ? "true" : "false") << ")";
 
     if (indent) {
         oss << "\n" << std::string(indent_size, ' ');
+    } else {
+        oss << " ";
     }
 
-    // Then metadata
-    oss << "Tensor(shape=" << t.sizes() << ", dtype=" << t.dtype() << ", dev=" << t.device()
-        << ", req_grad=" << (t.requires_grad() ? "true" : "false") << ")";
+    // Value first (no spaces/newlines in rendering)
+    oss << torch_u::render_tensor_values_compact(x, max_scalar_to_show, max_scalars_to_show_per_1D_vector, indent);
+
     return oss.str();
 }
 
