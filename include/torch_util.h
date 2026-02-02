@@ -165,22 +165,19 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
     auto device = X.device();
     auto idx_opts = torch::TensorOptions().dtype(torch::kInt64).device(device);
 
-    std::println("X.sizes(): {}", X.sizes());
-    std::println("Y.sizes(): {}", Y.sizes());
-
     for (int e = 0; e < epochs; ++e) {
-        const bool verbose_print = verbose && ((e % (epochs / 10) == 0) || e == epochs - 1);
+        const bool verbose_print = verbose && ((e % std::max<int64_t>(1, epochs / 10) == 0) || e == epochs - 1);
 
         if (verbose_print) {
             std::cout << "Epoch " << (e + 1) << "/" << epochs << " " << std::flush;
         }
 
         auto perm = torch::randperm(N, idx_opts);  // shuffle each epoch
-        double epoch_loss_sum = 0.0;
+        double epoch_cost_sum = 0.0;
 
         for (int64_t start = 0; start < N; start += batch_size) {
             if (verbose_print) {
-                if (start % (N / 10) == 0) {
+                if (start % std::max<int64_t>(1, N / 10) == 0) {
                     std::cout << "=" << std::flush;
                 }
             }
@@ -197,7 +194,7 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
             auto prediction = model->forward(xb);
             auto L = loss(prediction, yb);
 
-#if 1
+#if 0
             if (verbose_print) {
                 bool second_or_unique = (batch_size > N ? start == batch_size : start == 0);
                 if (second_or_unique) {
@@ -220,12 +217,12 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
             L.backward();
             optimizer.step();
 
-            epoch_loss_sum += L.template item<double>() * (end - start);
+            epoch_cost_sum += L.template item<double>() * (end - start);
         }
 
         if (verbose_print) {
-            double epoch_loss = epoch_loss_sum / static_cast<double>(N);
-            std::cout << " loss = " << epoch_loss << std::endl;
+            double epoch_cost = epoch_cost_sum / static_cast<double>(N);
+            std::cout << " cost = " << epoch_cost << std::endl;
         }
     }
 }
