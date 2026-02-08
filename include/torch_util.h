@@ -166,7 +166,7 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
     auto idx_opts = torch::TensorOptions().dtype(torch::kInt64).device(device);
 
     for (int e = 0; e < epochs; ++e) {
-        const bool verbose_print = verbose && ((e % std::max<int64_t>(1, epochs / 10) == 0) || e == epochs - 1);
+        const bool verbose_print = verbose && ((e % std::max<int64_t>(1, epochs / 100) == 0) || e == epochs - 1);
 
         if (verbose_print) {
             std::cout << "Epoch " << (e + 1) << "/" << epochs << " " << std::flush;
@@ -226,6 +226,29 @@ void fit_minibatch(torch::nn::Sequential &model, torch::Tensor X, torch::Tensor 
         }
     }
 }
+
+#include <torch/torch.h>
+#include <tuple>
+
+// ------------------------------------------------------------
+// gen_data
+// ------------------------------------------------------------
+// generate a data set based on x^2 with added noise
+//
+// Python reference:
+//
+// def gen_data(m, seed=1, scale=0.7):
+//     c = 0
+//     x_train = np.linspace(0,49,m)
+//     np.random.seed(seed)
+//     y_ideal = x_train**2 + c
+//     y_train = y_ideal + scale * y_ideal*(np.random.sample((m,))-0.5)
+//     x_ideal = x_train
+//     return x_train, y_train, x_ideal, y_ideal
+//
+extern auto gen_data(std::int64_t m, std::uint64_t seed = 1, double scale = 0.7, torch::Device device = torch::kCUDA,
+                     torch::ScalarType dtype = torch::kFloat64)
+    -> std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>;
 
 }  // namespace torch_u
 

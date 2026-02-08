@@ -287,6 +287,52 @@ torch::Tensor plot_ready(torch::Tensor t, torch::ScalarType dtype, bool force_co
     return t;
 }
 
+#include <torch/torch.h>
+#include <tuple>
+
+// ------------------------------------------------------------
+// gen_data
+// ------------------------------------------------------------
+// generate a data set based on x^2 with added noise
+//
+// Python reference:
+//
+// def gen_data(m, seed=1, scale=0.7):
+//     c = 0
+//     x_train = np.linspace(0,49,m)
+//     np.random.seed(seed)
+//     y_ideal = x_train**2 + c
+//     y_train = y_ideal + scale * y_ideal*(np.random.sample((m,))-0.5)
+//     x_ideal = x_train
+//     return x_train, y_train, x_ideal, y_ideal
+//
+auto gen_data(std::int64_t m, std::uint64_t seed, double scale, torch::Device device,
+              torch::ScalarType dtype) -> std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> {
+    // deterministic RNG (matches np.random.seed)
+    torch::manual_seed(seed);
+
+    // x_train = linspace(0, 49, m)
+    auto X_train = torch::linspace(
+                       /*start=*/0.0,
+                       /*end=*/49.0,
+                       /*steps=*/m, torch::TensorOptions().dtype(dtype).device(device))
+                       .unsqueeze(-1);
+
+    // y_ideal = x_train**2
+    auto Y_ideal = X_train.square();
+
+    // noise = scale * y_ideal * (rand(m) - 0.5)
+    auto noise = scale * Y_ideal * (torch::rand({m, 1}, X_train.options()) - 0.5);
+
+    // y_train = y_ideal + noise
+    auto Y_train = Y_ideal + noise;
+
+    // x_ideal = x_train (explicit clone to match Python semantics)
+    auto X_ideal = X_train.clone();
+
+    return {X_train, Y_train, X_ideal, Y_ideal};
+}
+
 }  // namespace torch_u
 
 extern "C" {
