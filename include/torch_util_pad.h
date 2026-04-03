@@ -142,4 +142,9 @@ inline auto calc_pad(const std::vector<double> &x, const std::vector<double> &y,
     return calc_pad(std::array{x}, std::array{y}, pad);
 }
 
+inline auto calc_pad(const std::vector<float> &x, const std::vector<float> &y,
+                     double pad = 0.1) -> std::tuple<float, float, float, float> {
+    return calc_pad(std::array{x}, std::array{y}, pad);
+}
+
 }  // namespace torch_u
