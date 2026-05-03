@@ -1,8 +1,8 @@
 #pragma once
 
 #include <torch/torch.h>
-#include <xtensor/xexpression.hpp>
-#include <xtensor/xmath.hpp>
+#include <xtensor/core/xexpression.hpp>
+#include <xtensor/core/xmath.hpp>
 
 namespace torch_u {
 

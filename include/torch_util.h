@@ -11,15 +11,15 @@
 #include <string_view>
 #include <torch/torch.h>
 #include <vector>
-#include <xtensor/xexpression.hpp>
-#include <xtensor/xmath.hpp>
+#include <xtensor/core/xexpression.hpp>
+#include <xtensor/core/xmath.hpp>
 
 #include <limits>
 #include <ranges>
 #include <tuple>
 #include <type_traits>
-#include <xtensor/xexpression.hpp>
-#include <xtensor/xmath.hpp>
+#include <xtensor/core/xexpression.hpp>
+#include <xtensor/core/xmath.hpp>
 
 #include <algorithm>
 #include <array>
